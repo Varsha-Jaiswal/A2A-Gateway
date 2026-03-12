@@ -17,7 +17,7 @@ body {
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--mono);
-  line-height: 1.6;
+  /* line-height: 1; */
   padding: 4rem 2rem;
   max-width: 800px;
   margin: 0 auto;
@@ -40,8 +40,7 @@ h2 {
   color: var(--link);
   font-size: 16px;
   font-weight: normal;
-  margin-top: 2.5rem;
-  margin-bottom: 1rem;
+  margin-top: 0.5rem;
 }
 
 h2::before {
@@ -50,7 +49,7 @@ h2::before {
 }
 
 p, ul {
-  margin-bottom: 1rem;
+  margin-bottom: -1rem;
 }
 
 ul {
