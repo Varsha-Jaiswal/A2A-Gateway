@@ -69,9 +69,7 @@ export const tripleAAgentCard: AgentCard = {
  *   POST /a2a/jsonrpc                   → JSON-RPC transport (spec compliant)
  *   POST /a2a/rest                      → HTTP+JSON/REST transport
  */
-export function setupA2AServer(app: express.Application): void {
-  const vcBotExecutor = new VcBotExecutor();
-
+export function setupA2AServer(app: express.Application, vcBotExecutor: VcBotExecutor): void {
   const requestHandler = new DefaultRequestHandler(
     tripleAAgentCard,
     new InMemoryTaskStore(),

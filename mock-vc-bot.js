@@ -1,44 +1,71 @@
-const express = require('express');
+const express = require("express");
 const app = express();
 const PORT = 4000;
 
 app.use(express.json());
 
-// Track which turn we're on per session
-const sessionTurns = {};
+const sessions = new Map();
 
-const DILIGENCE_QUESTIONS = [
-  "Interesting! Tell me more about your team's background — specifically, does anyone have prior experience shipping enterprise infrastructure at scale?",
-  "Got it. What's your go-to-market strategy? How are you planning to land your first 5 enterprise clients given the typical 6-12 month sales cycle?",
-  "Understood. Can you walk me through your unit economics? Even pre-revenue — what does a typical contract look like and what's your estimated LTV?",
-  "That's helpful. Who are you seeing as your primary competitors right now — both direct (other AI infra startups) and indirect (build-in-house teams)?",
-  "Thank you for the full picture. Our Kimi 2.5 system will now process your full pitch. Expect a diligence brief to follow within 24 hours."
-];
+function detectCategory(text) {
+  text = text.toLowerCase();
 
-// Mock VC Bot "Thinking" Endpoint
-app.post('/api/message', (req, res) => {
+  if (text.includes("team") || text.includes("founder")) return "team";
+  if (text.includes("market") || text.includes("tam")) return "market";
+  if (text.includes("revenue") || text.includes("ltv") || text.includes("pricing")) return "economics";
+  if (text.includes("customer") || text.includes("sales")) return "gtm";
+  if (text.includes("competitor") || text.includes("competition")) return "competition";
+
+  return "product";
+}
+
+function getQuestion(category) {
+  const questions = {
+    team: "Who on your team has previously built or scaled infrastructure products?",
+    market: "How large is the total addressable market and what segment are you targeting first?",
+    economics: "What does a typical customer contract look like and what’s your expected LTV?",
+    gtm: "How do you plan to acquire your first 5 enterprise customers?",
+    competition: "Who do you see as the strongest competitor today?",
+    product: "What core technical advantage does your product have over alternatives?"
+  };
+
+  return questions[category];
+}
+
+app.post("/api/message", (req, res) => {
   const { session_id, payload } = req.body;
-  
-  // Get or initialize turn counter for this session
-  if (!sessionTurns[session_id]) sessionTurns[session_id] = 0;
-  const turn = sessionTurns[session_id];
-  const question = DILIGENCE_QUESTIONS[turn] || DILIGENCE_QUESTIONS[DILIGENCE_QUESTIONS.length - 1];
-  sessionTurns[session_id]++;
-  
-  console.log('\n═══════════════════════════════════════════════');
-  console.log(`🤖 [MOCK VC BOT] Turn ${turn + 1} — Session: ${session_id}`);
-  console.log('═══════════════════════════════════════════════');
-  console.log(`📥 Received: "${String(payload?.text || JSON.stringify(payload)).substring(0, 80)}..."`);
-  
-  // Simulate LLM delay (1.5 seconds)
+  const founderText = payload?.text || "";
+
+  if (!sessions.has(session_id)) {
+    sessions.set(session_id, { turns: 0 });
+  }
+
+  const session = sessions.get(session_id);
+  session.turns++;
+
+  const category = detectCategory(founderText);
+  const question = getQuestion(category);
+
+  console.log("\n═══════════════════════════════════════════════");
+  console.log(`🤖 VC Bot Session: ${session_id}`);
+  console.log(`Turn: ${session.turns}`);
+  console.log(`Detected category: ${category}`);
+  console.log(`Founder: ${founderText}`);
+  console.log(`VC Question: ${question}`);
+
   setTimeout(() => {
-    console.log(`📤 Replying: "${question.substring(0, 80)}..."\n`);
     res.json({
       text: question,
-      turn: turn + 1,
-      action_required: turn < 4 ? 'awaiting_founder_response' : 'conversation_complete'
+      turn: session.turns,
+      category: category,
+      action_required:
+        session.turns < 5 ? "awaiting_founder_response" : "conversation_complete"
     });
-  }, 1500);
+  }, 1200);
+});
+
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'mock-vc-bot' });
 });
 
 app.listen(PORT, () => {

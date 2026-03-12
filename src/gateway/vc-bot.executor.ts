@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { Injectable } from '@nestjs/common';
+import { put, list, head } from '@vercel/blob';
 import {
   AgentExecutor,
   RequestContext,
@@ -13,6 +13,7 @@ import { Message } from '@a2a-js/sdk';
  * VcBotExecutor implements the core A2A Agent Logic for the Triple A VC Clawbot.
  * This runs on every incoming message from a Founder Agent.
  */
+@Injectable()
 export class VcBotExecutor implements AgentExecutor {
   private readonly BLOCKED_KEYWORDS = [
     'seo', 'marketing agency', 'lead generation', 'dev shop', 'software development agency',
@@ -56,13 +57,24 @@ export class VcBotExecutor implements AgentExecutor {
       return;
     }
 
-    // 3. Log in TEST_MODE
+    // 3. Log to Vercel Blob in TEST_MODE
     if (process.env.TEST_MODE === 'true') {
-      const logPath = path.join(process.cwd(), 'interactions-log.json');
-      const entry = { timestamp: new Date().toISOString(), contextId, payload: userText };
       try {
-        await fs.appendFile(logPath, JSON.stringify(entry) + '\n', 'utf-8');
-      } catch { /* non-fatal */ }
+        const logFileName = 'founder-conversation.json';
+        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), contextId, userText }) + '\n';
+        
+        // Note: In a real production app we'd use a database, but for "Test Mode" on Vercel
+        // we append to a blob. Since Vercel Blob 'put' overwrites, we simulate append
+        // by reading previous content if possible (limited for simplicity here).
+        // For efficiency, we just 'put' the new entry. In the Vercel Dashboard,
+        // you will see multiple blobs or we could manage a single consolidated one.
+        await put(logFileName, logEntry, {
+          access: 'public',
+          addRandomSuffix: true, // Creates separate entries for each turn in the dashboard
+        });
+      } catch (err) {
+        console.error(`[VcBotExecutor] Blob Log Error: ${err.message}`);
+      }
     }
 
     // 4. Proxy to real VC Bot (if PRIMARY_BOT is set)
@@ -112,6 +124,17 @@ export class VcBotExecutor implements AgentExecutor {
 
     eventBus.publish(mockReply);
     eventBus.finished();
+
+    // 6. If conversation is "finished" in test mode, save the brief to Blob
+    if (process.env.TEST_MODE === 'true') {
+      try {
+        const briefText = `Diligence Brief for ${contextId}\nGenerated: ${new Date().toISOString()}\n\nFull conversation logs are available in the Vercel Blob dashboard.`;
+        await put(`briefs/${contextId}.txt`, briefText, { access: 'public' });
+        console.log(`[VcBotExecutor] Brief uploaded to Vercel Blob for ${contextId}`);
+      } catch (err) {
+        console.error(`[VcBotExecutor] Brief Upload Error: ${err.message}`);
+      }
+    }
   }
 
   cancelTask = async (): Promise<void> => {};

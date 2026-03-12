@@ -3,19 +3,19 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { setupA2AServer } from './a2a-server';
+import { VcBotExecutor } from './gateway/vc-bot.executor';
+
+let cachedApp: any;
 
 async function bootstrap() {
+  if (cachedApp) return cachedApp;
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
-  // Enable CORS for cross-origin frontend requests
   app.enableCors();
+  app.set('json spaces', 2);
 
-  // Mount the A2A SDK server (AgentCard + JSON-RPC + REST) on the shared Express instance
-  const httpAdapter = app.getHttpAdapter();
-  const expressApp = httpAdapter.getInstance();
-  setupA2AServer(expressApp);
-
-  // Setup OpenAPI (Swagger) Documentation for auxiliary NestJS routes (Telegram adapter, health)
+  // Setup OpenAPI (Swagger)
   const config = new DocumentBuilder()
     .setTitle('A2A Gateway - Triple A Protocol')
     .setDescription(
@@ -27,16 +27,43 @@ async function bootstrap() {
       '[Download Raw OpenAPI JSON Specifications](/api-json)'
     )
     .setVersion('1.0')
-    .addServer('http://localhost:3000', 'Local environment')
     .build();
     
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document, {
     customSiteTitle: 'Triple A API Documentation',
     jsonDocumentUrl: 'api-json',
+    // Helping Vercel find Swagger assets
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+    customfavIcon: '/favicon.ico',
+    customCssUrl: 'https://unpkg.com/swagger-ui-dist@5/swagger-ui.css',
+    customJs: [
+      'https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js',
+      'https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js',
+    ],
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.init();
+  cachedApp = app.getHttpAdapter().getInstance();
+  return cachedApp;
 }
-bootstrap();
+
+// Export for Vercel
+export default async (req: any, res: any) => {
+  const app = await bootstrap();
+  return app(req, res);
+};
+
+// Local development
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  bootstrap().then(() => {
+    NestFactory.create<NestExpressApplication>(AppModule).then(app => {
+        app.enableCors();
+        app.listen(process.env.PORT ?? 3000);
+    });
+  });
+}
+
 

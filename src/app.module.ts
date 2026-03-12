@@ -1,9 +1,11 @@
 import { Module, DynamicModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { GatewayModule } from './gateway/gateway.module';
+import { join } from 'path';
 
 
 // Base Modules (Always loaded)
@@ -17,12 +19,20 @@ const imports: any[] = [
     limit: 10,
   }]),
 
-  // 3. Core Feature Modules
+  // 3. Serve Static Frontend
+  ServeStaticModule.forRoot({
+    rootPath: join(process.cwd(), 'public'),
+    exclude: ['/api/(.*)', '/a2a/(.*)', '/.well-known/(.*)', '/api-docs(.*)', '/api-json'],
+  }),
+
+  // 4. Core Feature Modules
   GatewayModule,
 ];
 
-// Conditionally load Heavy Infrastructure based on TEST_MODE flag
-if (process.env.TEST_MODE !== 'true') {
+const isTestMode = process.env.TEST_MODE === 'true';
+
+// Conditionally load Heavy Infrastructure if NOT in test mode
+if (!isTestMode) {
   imports.push(
     // MongoDB Connection (Dynamic State)
     MongooseModule.forRootAsync({

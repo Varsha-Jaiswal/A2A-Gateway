@@ -4,8 +4,7 @@ dist
 .DS_Store
 
 # Generated test output
-interactions-log.json
-founder-conversation-log.json
+founder-conversation.json
 diligence-brief.txt
 
 # Frontend env injection file (generated at runtime)
@@ -13,3 +12,4 @@ public/env.js
 
 # Coverage
 coverage
+.vercel

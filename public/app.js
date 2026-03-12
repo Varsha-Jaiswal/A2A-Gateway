@@ -3,13 +3,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const docsUrlDisplay = document.getElementById('docs-url-display');
     
     if (urlDisplay && docsUrlDisplay) {
-        // Use dynamically injected local URL during testing, otherwise fallback to prod
-        const backendUrl = window.ENV?.BACKEND_URL || 'https://agent.3-a.vc';
+        // trust the dynamic env or fallback to current origin
+        const backendUrl = window.ENV?.BACKEND_URL || window.location.origin;
+        const swaggerUrlDisplay = document.getElementById('swagger-url-display');
         
-        // Only update the display if we are running locally to help with testing
-        if (backendUrl.includes('localhost')) {
-            urlDisplay.textContent = backendUrl + '/api/submissions';
-            docsUrlDisplay.textContent = backendUrl + '/api-json';
+        urlDisplay.textContent = backendUrl;
+        urlDisplay.href = backendUrl;
+
+        docsUrlDisplay.textContent = backendUrl + '/api-json';
+        docsUrlDisplay.href = backendUrl + '/api-json';
+
+        if (swaggerUrlDisplay) {
+            swaggerUrlDisplay.textContent = backendUrl + '/api-docs';
+            swaggerUrlDisplay.href = backendUrl + '/api-docs';
         }
     }
 });
