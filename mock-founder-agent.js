@@ -126,14 +126,12 @@ import('@a2a-js/sdk/client').then(async ({ ClientFactory }) => {
     await sleep(1500);
   }
 
-  /* 
   await fs.writeFile(
     OUTPUT_PATH,
     JSON.stringify({ contextId, transcript }, null, 2),
     "utf-8"
   );
   console.log(`✅ Transcript saved → ${OUTPUT_PATH}\n`);
-  */
 
   const signals = {
     stage: "Seed",

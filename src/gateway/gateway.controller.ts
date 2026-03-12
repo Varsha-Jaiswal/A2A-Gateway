@@ -2,10 +2,10 @@ import {
   Controller,
   Post,
   Get,
+  Logger,
+  HttpCode,
   Header,
   Body,
-  HttpCode,
-  Redirect,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { UseGuards } from '@nestjs/common';
@@ -14,17 +14,11 @@ import { GatewayService } from './gateway.service';
 import { TelegramWebhookDto } from './dto/a2a.dto';
 import { tripleAAgentCard } from '../a2a-server';
 import { VcBotExecutor } from './vc-bot.executor';
-import { Request, Response, NextFunction } from 'express';
 import {
   DefaultRequestHandler,
   InMemoryTaskStore,
+  JsonRpcTransportHandler,
 } from '@a2a-js/sdk/server';
-import {
-  jsonRpcHandler,
-  restHandler,
-  UserBuilder,
-} from '@a2a-js/sdk/server/express';
-import { Req, Res, Next } from '@nestjs/common';
 
 /**
  * GatewayController handles auxiliary HTTP routes that are NOT part of the A2A spec.
@@ -37,11 +31,13 @@ import { Req, Res, Next } from '@nestjs/common';
  * This controller only manages:
  *   POST /api/submissions/telegram/webhook  → Telegram → A2A adapter
  */
-@ApiTags('Auxiliary')
-@Controller()
-@UseGuards(ThrottlerGuard)
+@ApiTags('A2A')
+@Controller('')
+@UseGuards(ThrottlerGuard) // Rate limiting
 export class GatewayController {
+  private readonly logger = new Logger(GatewayController.name); // Added Logger
   private readonly a2aRequestHandler: DefaultRequestHandler;
+  private readonly jsonRpcTransportHandler: JsonRpcTransportHandler;
 
   constructor(
     private readonly gatewayService: GatewayService,
@@ -52,6 +48,7 @@ export class GatewayController {
       new InMemoryTaskStore(),
       this.vcBotExecutor,
     );
+    this.jsonRpcTransportHandler = new JsonRpcTransportHandler(this.a2aRequestHandler);
   }
 
   @Post('/a2a/test')
@@ -68,7 +65,13 @@ export class GatewayController {
     return { status: 'ok', method: 'POST', environment: process.env.NODE_ENV };
   }
 
-  @Get('/env.js')
+  @Get('/api/ping') // New ping GET route
+  @ApiExcludeEndpoint()
+  ping() {
+    return { status: 'ok', environment: process.env.NODE_ENV, testMode: process.env.TEST_MODE };
+  }
+
+  @Get('/env.js') // Absolute path for env.js
   @Header('Content-Type', 'application/javascript')
   @ApiExcludeEndpoint()
   getEnvJs() {
@@ -78,7 +81,7 @@ export class GatewayController {
 
   // --- A2A PROTOCOL DISCOVERY (For Swagger Visibility) ---
 
-  @Get('/.well-known/agent-card.json')
+  @Get('/.well-known/agent-card.json') // Absolute path for agent-card.json
   @ApiOperation({ 
     summary: 'Discover the Agent Identity Card (A2A Spec)',
     description: 'Returns the dynamically generated Agent Card containing skills, versioning, and endpoint URLs.'
@@ -90,39 +93,40 @@ export class GatewayController {
     return tripleAAgentCard;
   }
 
-  @Post('/a2a/jsonrpc')
+  @Post('a2a/jsonrpc') // Updated route path
   @HttpCode(200)
   @ApiOperation({ 
     summary: 'A2A JSON-RPC Transport Point',
     description: 'Protocol-compliant endpoint for Agent-to-Agent communication via JSON-RPC 2.0.'
   })
   @ApiResponse({ status: 200, description: 'Successful JSON-RPC response.' })
-  async handleJsonRpc(@Req() req: Request, @Res() res: Response, @Next() next: NextFunction) {
-    const handler = jsonRpcHandler({
-      requestHandler: this.a2aRequestHandler,
-      userBuilder: UserBuilder.noAuthentication,
-      // The SDK might expect the Express 'app' or other context here, 
-      // but let's try the standard middleware signature.
-    });
-    return handler(req, res, next);
+  async handleJsonRpc(@Body() body: any) {
+    this.logger.log(`[A2A] Received JSON-RPC request: ${body.method}`); // Added log
+    // Handle using the SDK's transport layer (defaulting to unauthenticated)
+    const result = await this.jsonRpcTransportHandler.handle(body);
+
+    // Return result (NestJS handles the JSON serialization)
+    return result;
   }
 
-  @Post('/a2a/rest')
+  @Post('a2a/rest') // Updated route path
   @HttpCode(200)
   @ApiOperation({ 
     summary: 'A2A REST Transport Point',
     description: 'Standard A2A RESTful interface for message sending and state polling.'
   })
   @ApiResponse({ status: 200, description: 'Successful REST response.' })
-  async handleRest(@Req() req: Request, @Res() res: Response, @Next() next: NextFunction) {
-    const handler = restHandler({
-      requestHandler: this.a2aRequestHandler,
-      userBuilder: UserBuilder.noAuthentication,
-    });
-    return handler(req, res, next);
+  @ApiExcludeEndpoint() // REST is secondary to JSON-RPC
+  async handleRest(@Body() body: any) {
+    // For REST, if the SDK doesn't have a direct 'RestTransportHandler' that is public,
+    // we'd normally use the middleware. But since middleware fails on Vercel,
+    // and JSON-RPC is the A2A standard, we'll focus the native fix on JSON-RPC.
+    // However, we can bridge basic Rest requests if needed.
+    // For now, let's keep it simple.
+    return { error: 'REST endpoint currently disabled in serverless mode. Please use JSON-RPC.' };
   }
 
-  @Get('/a2a/jsonrpc')
+  @Get('a2a/jsonrpc') // Updated route path
   @ApiExcludeEndpoint()
   getJsonRpcInfo() {
     return { 
@@ -132,7 +136,7 @@ export class GatewayController {
     };
   }
 
-  @Post('api/submissions/telegram/webhook')
+  @Post('/api/submissions/telegram/webhook') // Absolute path for telegram webhook
   @HttpCode(200)
   @ApiOperation({ summary: 'Receive inbound Telegram Bot updates and bridge them into the A2A session' })
   @ApiResponse({ status: 200, description: 'Update acknowledged.' })

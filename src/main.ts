@@ -2,8 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { setupA2AServer } from './a2a-server';
-import { VcBotExecutor } from './gateway/vc-bot.executor';
 
 let cachedApp: any;
 

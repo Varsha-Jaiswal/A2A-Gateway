@@ -51,13 +51,13 @@ TEST_MODE=true // Enables interaction logging
 
 ### 3. Run for Local Development
 
-# Start the mock VC Bot (the agent's brain)
+#### Start the mock VC Bot (the agent's brain)
 ```bash
 node mock-vc-bot.js
 ```
 Runs at: http://localhost:4000
 
-# Start the A2A Gateway
+#### Start the A2A Gateway
 ```bash
 npm run start:dev
 ```

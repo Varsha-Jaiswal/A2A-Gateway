@@ -77,63 +77,37 @@ export class VcBotExecutor implements AgentExecutor {
       }
     }
 
-    // 4. Proxy to real VC Bot (if PRIMARY_BOT is set)
+    // 5. Proxy to real VC Bot (REQUIRED in A2A SDK production flow)
     const vcBotUrl = process.env.PRIMARY_BOT;
-    if (vcBotUrl) {
-      try {
-        console.log(`[VcBotExecutor] Forwarding to VC Bot at ${vcBotUrl}...`);
-        const response = await fetch(vcBotUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: contextId, payload: { text: userText } }),
-        });
-
-        if (!response.ok) throw new Error(`VC Bot returned ${response.status}`);
-        const data = await response.json() as any;
-
-        const botReply: Message = {
-          kind: 'message',
-          messageId: randomUUID(),
-          role: 'agent',
-          contextId,
-          parts: [{ kind: 'text', text: data.text || JSON.stringify(data) }],
-        };
-
-        eventBus.publish(botReply);
-        eventBus.finished();
-        return;
-      } catch (err) {
-        console.error(`[VcBotExecutor] Failed to reach VC Bot (${err.message}). Using mock fallback.`);
-      }
+    if (!vcBotUrl) {
+      throw new Error('[VcBotExecutor] PRIMARY_BOT environment variable is NOT SET. Cannot proceed with A2A flow.');
     }
 
-    // 5. Mock fallback — simulate VC Bot response
-    console.log(`[VcBotExecutor] Using mock response for context ${contextId}`);
-    await new Promise(r => setTimeout(r, 1500));
+    try {
+      console.log(`[VcBotExecutor] Forwarding to VC Bot at ${vcBotUrl}...`);
+      const response = await fetch(vcBotUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: contextId, payload: { text: userText } }),
+      });
 
-    const mockReply: Message = {
-      kind: 'message',
-      messageId: randomUUID(),
-      role: 'agent',
-      contextId,
-      parts: [{
-        kind: 'text',
-        text: 'Thank you for the details. Can you share more about your go-to-market strategy and how you plan to acquire your first 10 enterprise clients?',
-      }],
-    };
+      if (!response.ok) throw new Error(`VC Bot returned ${response.status}`);
+      const data = await response.json() as any;
 
-    eventBus.publish(mockReply);
-    eventBus.finished();
+      const botReply: Message = {
+        kind: 'message',
+        messageId: randomUUID(),
+        role: 'agent',
+        contextId,
+        parts: [{ kind: 'text', text: data.text || JSON.stringify(data) }],
+      };
 
-    // 6. If conversation is "finished" in test mode, save the brief to Blob
-    if (process.env.TEST_MODE === 'true') {
-      try {
-        const briefText = `Diligence Brief for ${contextId}\nGenerated: ${new Date().toISOString()}\n\nFull conversation logs are available in the Vercel Blob dashboard.`;
-        await put(`briefs/${contextId}.txt`, briefText, { access: 'public' });
-        console.log(`[VcBotExecutor] Brief uploaded to Vercel Blob for ${contextId}`);
-      } catch (err) {
-        console.error(`[VcBotExecutor] Brief Upload Error: ${err.message}`);
-      }
+      eventBus.publish(botReply);
+      eventBus.finished();
+      return;
+    } catch (err) {
+      console.error(`[VcBotExecutor] CRITICAL: Failed to reach VC Bot (${err.message})`);
+      throw err; // Let the SDK handle the error response
     }
   }
 

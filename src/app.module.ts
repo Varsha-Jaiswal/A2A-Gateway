@@ -1,4 +1,4 @@
-import { Module, DynamicModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -13,10 +13,10 @@ const imports: any[] = [
   // 1. Environment Config
   ConfigModule.forRoot({ isGlobal: true }),
 
-  // 2. Open Access Rate Limiting (10 reqs per 60 seconds per IP)
+  // 2. Open Access Rate Limiting (100 reqs per 60 seconds per IP)
   ThrottlerModule.forRoot([{
     ttl: 60000,
-    limit: 10,
+    limit: 100,
   }]),
 
   // 3. Serve Static Frontend

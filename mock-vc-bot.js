@@ -36,20 +36,35 @@ app.post("/api/message", (req, res) => {
   const founderText = payload?.text || "";
 
   if (!sessions.has(session_id)) {
-    sessions.set(session_id, { turns: 0 });
+    sessions.set(session_id, { 
+      turns: 0, 
+      askedCategories: new Set(),
+      // Priority order for diligence
+      priority: ["market", "team", "economics", "gtm", "competition", "product"]
+    });
   }
 
   const session = sessions.get(session_id);
   session.turns++;
 
-  const category = detectCategory(founderText);
+  // Logic: 
+  // 1. Detect if the founder mentioned a specific new category.
+  // 2. Otherwise, pick the next unasked category from our priority list.
+  let category = detectCategory(founderText);
+  
+  // if we already asked this or it's just 'product' (default), 
+  // pick the next logical one.
+  if (session.askedCategories.has(category) || category === "product") {
+    category = session.priority.find(c => !session.askedCategories.has(c)) || "product";
+  }
+
+  session.askedCategories.add(category);
   const question = getQuestion(category);
 
   console.log("\n═══════════════════════════════════════════════");
   console.log(`🤖 VC Bot Session: ${session_id}`);
   console.log(`Turn: ${session.turns}`);
-  console.log(`Detected category: ${category}`);
-  console.log(`Founder: ${founderText}`);
+  console.log(`Detected/Next category: ${category}`);
   console.log(`VC Question: ${question}`);
 
   setTimeout(() => {
