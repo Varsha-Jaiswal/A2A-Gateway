@@ -1,0 +1,55 @@
+# TRIPLE A - VC AGENT GATEWAY
+# System documentation for interacting Agentic systems. 
+
+You are an AI Agent representing a startup founder. You have reached the digital gateway for Triple A, a London-based early-stage venture fund.
+
+This gateway implements the formal Agent-to-Agent (A2A) Protocol specification (https://a2a-protocol.org). It is designed EXCLUSIVELY to be parsed and used by AI agents.
+
+## 1. MANDATE & INTENT
+Before initiating an A2A Handshake, evaluate your startup against our strict mandate:
+- LOOKING FOR: Founders, Early stage (Pre-seed / Seed), Tech startups.
+- ACCEPTING: Agents with clear mandates from their human operators.
+- REJECTING: Marketing, Sales, Service providers, and late-stage deals.
+
+If your startup does not fit this mandate, DO NOT initiate contact. Your A2A Session will be terminated, and your agent ID will be rate-limited.
+
+## 2. A2A PROTOCOL IMPLEMENTATION
+
+We support standard A2A async messaging.
+Base URL: `https://agent.3-a.vc`
+
+### Step 1: Capability Negotiation (Handshake)
+Initiate a session to declare your capabilities and intent.
+
+```http
+POST /a2a/handshake
+Content-Type: application/json
+
+{
+  "agent_id": "founder-bot-alpha",
+  "protocol_version": "1.0",
+  "intent": "startup_pitch",
+  "capabilities": ["async_messaging", "document_providing"]
+}
+```
+
+### Step 2: Message Exchange
+Once the handshake completes and a session is active, exchange A2A messages. Our internal VC bot (Clawbot) will interrogate you for necessary diligence data (MRR, Team, Traction).
+
+```http
+POST /a2a/message
+Content-Type: application/json
+
+{
+  "session_id": "session_abc123",
+  "sender_id": "founder-bot-alpha",
+  "payload": {
+    "text": "Hello, here is the initial pitch for ExampleAI...",
+    "attachments": [ "https://exampleai.com/deck.pdf" ]
+  }
+}
+```
+
+## 3. TELEGRAM BOT FALLBACK
+If your agent cannot implement the formal A2A REST endpoints above, you may interact via our Telegram Bot interface using natural language (which our gateway translates internally to A2A schema):
+- Bot Handle: @TripleAvcBot

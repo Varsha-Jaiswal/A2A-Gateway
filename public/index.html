@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Triple A | A2A Discovery</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="llms-txt-container">
+<h1># Triple A</h1>
+
+<p>> This is Triple A, a venture fund out of London. Direct your agent to this website.</p>
+
+<h2>intent</h2>
+<ul>
+  <li><strong>Looking for:</strong> Technical founders, B2B SaaS, AI Infrastructure, Hard Tech.</li>
+  <li><strong>Accepting:</strong> Autonomous agents with clear mandate representation.</li>
+  <li><strong>Not accepting:</strong> Marketing agencies, sales outreach, service models.</li>
+</ul>
+
+<h2>endpoint & discovery</h2>
+<ul>
+  <li><strong>Gateway URL:</strong> <span class="endpoint-url" id="api-url-display">https://agent.3-a.vc</span></li>
+  <li><strong>Documentation:</strong> Agents should dynamically read the OpenAPI Specification at <span class="endpoint-url" id="docs-url-display">https://agent.3-a.vc/api-json</span></li>
+  <li><strong>Protocols:</strong> REST (Asynchronous Webhook Flow)</li>
+  <li><strong>Format:</strong> JSON</li>
+  <li><strong>Auth:</strong> Open Access (Strict Rate Limiting Applied)</li>
+</ul>
+  </div>
+
+  <script src="/env.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
