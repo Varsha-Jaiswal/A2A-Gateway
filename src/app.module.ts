@@ -4,7 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { GatewayModule } from './gateway/gateway.module';
-import { IntakeModule } from './intake/intake.module';
+
 
 // Base Modules (Always loaded)
 const imports: any[] = [
@@ -19,7 +19,6 @@ const imports: any[] = [
 
   // 3. Core Feature Modules
   GatewayModule,
-  IntakeModule,
 ];
 
 // Conditionally load Heavy Infrastructure based on TEST_MODE flag

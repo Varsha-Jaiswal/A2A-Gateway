@@ -1,0 +1,118 @@
+import { randomUUID } from 'crypto';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import {
+  AgentExecutor,
+  RequestContext,
+  ExecutionEventBus,
+} from '@a2a-js/sdk/server';
+import { Message } from '@a2a-js/sdk';
+
+
+/**
+ * VcBotExecutor implements the core A2A Agent Logic for the Triple A VC Clawbot.
+ * This runs on every incoming message from a Founder Agent.
+ */
+export class VcBotExecutor implements AgentExecutor {
+  private readonly BLOCKED_KEYWORDS = [
+    'seo', 'marketing agency', 'lead generation', 'dev shop', 'software development agency',
+  ];
+
+  private checkMandate(text: string): boolean {
+    const lower = text.toLowerCase();
+    for (const keyword of this.BLOCKED_KEYWORDS) {
+      if (lower.includes(keyword)) {
+        console.warn(`[VcBotExecutor] Mandate violation: blocked keyword "${keyword}"`);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
+    const { contextId, userMessage } = requestContext;
+
+    // 1. Extract text from the incoming A2A Message
+    const textPart = userMessage.parts.find(p => p.kind === 'text');
+    const userText = (textPart as any)?.text || '';
+
+    console.log(`\n[VcBotExecutor] Received message for context: ${contextId}`);
+    console.log(`[VcBotExecutor] Founder said: "${userText.substring(0, 80)}..."`);
+
+    // 2. Mandate Filter — reject off-mandate messages
+    if (!this.checkMandate(userText)) {
+      const rejectMessage: Message = {
+        kind: 'message',
+        messageId: randomUUID(),
+        role: 'agent',
+        contextId,
+        parts: [{
+          kind: 'text',
+          text: 'MANDATE_VIOLATION: Triple A mandate strictly accepts Technical Founders, B2B SaaS, AI Infrastructure, Hard Tech. Your submission has been declined.',
+        }],
+      };
+      eventBus.publish(rejectMessage);
+      eventBus.finished();
+      return;
+    }
+
+    // 3. Log in TEST_MODE
+    if (process.env.TEST_MODE === 'true') {
+      const logPath = path.join(process.cwd(), 'interactions-log.json');
+      const entry = { timestamp: new Date().toISOString(), contextId, payload: userText };
+      try {
+        await fs.appendFile(logPath, JSON.stringify(entry) + '\n', 'utf-8');
+      } catch { /* non-fatal */ }
+    }
+
+    // 4. Proxy to real VC Bot (if PRIMARY_BOT is set)
+    const vcBotUrl = process.env.PRIMARY_BOT;
+    if (vcBotUrl) {
+      try {
+        console.log(`[VcBotExecutor] Forwarding to VC Bot at ${vcBotUrl}...`);
+        const response = await fetch(vcBotUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: contextId, payload: { text: userText } }),
+        });
+
+        if (!response.ok) throw new Error(`VC Bot returned ${response.status}`);
+        const data = await response.json() as any;
+
+        const botReply: Message = {
+          kind: 'message',
+          messageId: randomUUID(),
+          role: 'agent',
+          contextId,
+          parts: [{ kind: 'text', text: data.text || JSON.stringify(data) }],
+        };
+
+        eventBus.publish(botReply);
+        eventBus.finished();
+        return;
+      } catch (err) {
+        console.error(`[VcBotExecutor] Failed to reach VC Bot (${err.message}). Using mock fallback.`);
+      }
+    }
+
+    // 5. Mock fallback — simulate VC Bot response
+    console.log(`[VcBotExecutor] Using mock response for context ${contextId}`);
+    await new Promise(r => setTimeout(r, 1500));
+
+    const mockReply: Message = {
+      kind: 'message',
+      messageId: randomUUID(),
+      role: 'agent',
+      contextId,
+      parts: [{
+        kind: 'text',
+        text: 'Thank you for the details. Can you share more about your go-to-market strategy and how you plan to acquire your first 10 enterprise clients?',
+      }],
+    };
+
+    eventBus.publish(mockReply);
+    eventBus.finished();
+  }
+
+  cancelTask = async (): Promise<void> => {};
+}

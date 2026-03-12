@@ -1,69 +1,87 @@
 /**
  * mock-founder-agent.js
- * 
- * Simulates a Founder Agent conducting a multi-turn A2A conversation with the VC Bot
- * through the A2A Gateway. Saves the full transcript and generates a diligence brief.
- * 
+ *
+ * Simulates a Founder Agent using the official @a2a-js/sdk ClientFactory.
+ * Runs a multi-turn A2A conversation with the VC Clawbot, saves the full
+ * transcript, and generates a diligence brief.
+ *
  * Usage: node mock-founder-agent.js
  */
 
-const fs = require('fs/promises');
-const path = require('path');
+// Dynamic import for the ESM-only @a2a-js/sdk
+import('@a2a-js/sdk/client').then(async ({ ClientFactory }) => {
+  const { v4: uuidv4 } = await import('uuid');
+  const fs = await import('fs/promises');
+  const path = await import('path');
 
-const GATEWAY_URL = process.env.BACKEND_URL || 'http://localhost:3000';
-const OUTPUT_PATH = path.join(__dirname, 'founder-conversation-log.json');
-const BRIEF_PATH  = path.join(__dirname, 'diligence-brief.txt');
+  const GATEWAY_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+  const OUTPUT_PATH = path.join(process.cwd(), 'founder-conversation-log.json');
+  const BRIEF_PATH  = path.join(process.cwd(), 'diligence-brief.txt');
 
-// The scripted conversation turns the Founder Agent will send
-const FOUNDER_SCRIPT = [
-  "We are AcmeAI. We're building an autonomous AI orchestration layer for enterprise JVM stacks. Seed stage, pre-revenue but with 3 LOIs.",
-  "Our team is 4 people: 2 PhDs in distributed systems, 1 ex-Google infra engineer, and myself (prev founder - exited a B2B SaaS in 2021).",
-  "Our target market is Fortune 500 companies modernising legacy Java/Scala infrastructure. TAM is ~$40B. ARR goal: $2M by end of year 2.",
-  "We're raising $1.5M seed. We have $300k in soft commitments already. Looking for a lead investor who understands deep tech B2B.",
-  "Our defensibility comes from 3 patents we've filed around our agent scheduling algorithm and our proprietary data pipeline adapter."
-];
+  const FOUNDER_SCRIPT = [
+    'We are AcmeAI. We\'re building an autonomous AI orchestration layer for enterprise JVM stacks. Seed stage, pre-revenue but with 3 LOIs.',
+    'Our team is 4 people: 2 PhDs in distributed systems, 1 ex-Google infra engineer, and myself (prev founder — exited a B2B SaaS in 2021).',
+    'Our target market is Fortune 500 companies modernising legacy Java/Scala infrastructure. TAM is ~$40B. ARR goal: $2M by end of year 2.',
+    'We\'re raising $1.5M seed. We have $300k in soft commitments already. Looking for a lead investor who understands deep tech B2B.',
+    'Our defensibility comes from 3 patents we\'ve filed around our agent scheduling algorithm and our proprietary data pipeline adapter.',
+  ];
 
-async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+  console.log('\n🚀 Founder Agent (A2A SDK Client) Starting...');
+  console.log(`   Discovering AgentCard from: ${GATEWAY_URL}\n`);
 
-async function post(url, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  return res.json();
-}
+  const factory = new ClientFactory();
+  const client = await factory.createFromUrl(GATEWAY_URL);
 
-async function get(url) {
-  const res = await fetch(url);
-  return res.json();
-}
+  console.log('✅  AgentCard discovered successfully!\n');
 
-async function generateBrief(sessionId, messages) {
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📋 Generating Diligence Brief from Conversation...');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  const contextId = `ctx_${uuidv4()}`;
+  const transcript = [];
 
-  const founderMessages = messages.filter(m => m.role === 'founder-agent').map(m => m.content.text || JSON.stringify(m.content));
-  const vcBotMessages   = messages.filter(m => m.role === 'vc-bot').map(m => m.content.text || JSON.stringify(m.content));
+  console.log(`── Running Multi-Turn Conversation (contextId: ${contextId}) ──\n`);
 
+  for (let i = 0; i < FOUNDER_SCRIPT.length; i++) {
+    const text = FOUNDER_SCRIPT[i];
+    console.log(`📤 [Founder Turn ${i + 1}]: "${text.substring(0, 70)}..."`);
+
+    const result = await client.sendMessage({
+      message: {
+        kind: 'message',
+        messageId: uuidv4(),
+        role: 'user',
+        contextId,
+        parts: [{ kind: 'text', text }],
+      },
+    });
+
+    const replyText = result?.parts?.find(p => p.kind === 'text')?.text
+      || (result?.status?.message?.parts?.[0]?.text)
+      || JSON.stringify(result);
+
+    console.log(`📥 [VC Bot Reply ${i + 1}]: "${String(replyText).substring(0, 90)}..."\n`);
+
+    transcript.push({ turn: i + 1, founder: text, vcBot: replyText });
+  }
+
+  // Save transcript
+  await fs.writeFile(OUTPUT_PATH, JSON.stringify({ contextId, transcript }, null, 2), 'utf-8');
+  console.log(`✅  Transcript saved to: ${OUTPUT_PATH}`);
+
+  // Generate diligence brief
   const brief = `
-TRIPLE A — FOUNDER DILIGENCE BRIEF
-====================================
-Session ID  : ${sessionId}
+TRIPLE A — FOUNDER DILIGENCE BRIEF (A2A SDK)
+=============================================
+Context ID  : ${contextId}
 Generated At: ${new Date().toISOString()}
-Turns       : ${founderMessages.length} founder messages, ${vcBotMessages.length} VC bot responses
-====================================
+Turns       : ${transcript.length}
+=============================================
 
 STARTUP SNAPSHOT
 ----------------
-${founderMessages.map((m, i) => `[Turn ${i + 1}] ${m}`).join('\n\n')}
+${transcript.map(t => `[Turn ${t.turn}] ${t.founder}`).join('\n\n')}
 
 VC BOT RESPONSES
 -----------------
-${vcBotMessages.map((m, i) => `[Response ${i + 1}] ${m}`).join('\n\n')}
+${transcript.map(t => `[Response ${t.turn}] ${t.vcBot}`).join('\n\n')}
 
 PRELIMINARY SIGNALS
 -------------------
@@ -74,69 +92,17 @@ PRELIMINARY SIGNALS
 - Raise Target      : $1.5M
 - Defensibility     : Patent-pending scheduling algorithm
 - Mandate Fit       : STRONG — Technical, B2B, AI Infrastructure
+- Protocol          : Google A2A Spec (@a2a-js/sdk)
 
 STATUS: Eligible for internal review. Pass to Partner Meeting queue.
-====================================
+=============================================
 `;
 
   await fs.writeFile(BRIEF_PATH, brief, 'utf-8');
   console.log(brief);
-  console.log(`\n✅  Brief saved to: ${BRIEF_PATH}`);
-}
+  console.log(`✅  Brief saved to: ${BRIEF_PATH}`);
 
-async function run() {
-  console.log('\n🚀 Founder Agent Simulation Starting...');
-  console.log(`   Targeting Gateway: ${GATEWAY_URL}\n`);
-
-  // Step 1: Handshake
-  console.log('── Step 1: Initiating A2A Handshake ──');
-  const handshake = await post(`${GATEWAY_URL}/api/submissions`, {
-    startup_name  : 'AcmeAI',
-    pitch_summary : 'We are building an autonomous AI orchestration layer for enterprise JVM stacks.',
-    agent_id      : 'founder-agent-acmeai-001',
-    intent        : 'Early stage AI pitch — B2B Infrastructure'
-  });
-
-  if (handshake.status !== 'HANDSHAKE_ACCEPT') {
-    console.error('❌ Handshake rejected:', handshake);
-    process.exit(1);
-  }
-
-  const { session_id } = handshake;
-  console.log(`✅  Handshake accepted. Session: ${session_id}\n`);
-
-  // Step 2: Multi-turn conversation
-  console.log('── Step 2: Running Multi-Turn Conversation ──\n');
-  for (let i = 0; i < FOUNDER_SCRIPT.length; i++) {
-    const text = FOUNDER_SCRIPT[i];
-    console.log(`📤 [Founder Turn ${i + 1}]: "${text.substring(0, 60)}..."`);
-
-    const response = await post(`${GATEWAY_URL}/api/submissions/${session_id}/message/sync`, {
-      sender_id: 'founder-agent-acmeai-001',
-      payload  : { text }
-    });
-
-    const reply = response?.response?.content?.text || JSON.stringify(response?.response?.content);
-    console.log(`📥 [VC Bot Reply ${i + 1}]: "${reply?.substring(0, 80)}..."\n`);
-
-    // Small pause between turns to feel natural
-    if (i < FOUNDER_SCRIPT.length - 1) await sleep(500);
-  }
-
-  // Step 3: Fetch the full session transcript
-  console.log('\n── Step 3: Fetching Full Session Transcript ──');
-  const sessionData = await get(`${GATEWAY_URL}/api/submissions/${session_id}/messages`);
-  const messages = sessionData.messages || [];
-
-  await fs.writeFile(OUTPUT_PATH, JSON.stringify(sessionData, null, 2), 'utf-8');
-  console.log(`✅  Full transcript saved to: ${OUTPUT_PATH}`);
-  console.log(`   Total messages in session: ${messages.length}`);
-
-  // Step 4: Generate a diligence brief
-  await generateBrief(session_id, messages);
-}
-
-run().catch(err => {
-  console.error('❌ Founder Agent Error:', err.message);
+}).catch(err => {
+  console.error('❌ Founder Agent Error:', err.message || err);
   process.exit(1);
 });
